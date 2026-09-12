@@ -1,0 +1,560 @@
+/* =====================================================
+   BASIC
+===================================================== */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    background:
+        linear-gradient(
+            180deg,
+            #071421,
+            #06101a
+        );
+
+    color: white;
+
+    min-height: 100vh;
+}
+
+
+/* =====================================================
+   APP
+===================================================== */
+
+.app {
+
+    width: 100%;
+
+    max-width: 600px;
+
+    margin: auto;
+
+    padding: 20px;
+
+    min-height: 100vh;
+}
+
+
+/* =====================================================
+   HEADER
+===================================================== */
+
+header {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 15px;
+
+    margin-bottom: 25px;
+}
+
+.water-icon {
+
+    width: 55px;
+
+    height: 55px;
+
+    border-radius: 16px;
+
+    display: flex;
+
+    justify-content: center;
+
+    align-items: center;
+
+    font-size: 30px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #087f9c,
+            #064f72
+        );
+}
+
+h1 {
+
+    font-size: 25px;
+
+    margin-bottom: 4px;
+}
+
+header p {
+
+    color: #8ea4b5;
+
+    font-size: 14px;
+}
+
+
+/* =====================================================
+   CONNECTION CARD
+===================================================== */
+
+.connection-card {
+
+    background: #102b3c;
+
+    border-radius: 18px;
+
+    padding: 18px;
+
+    margin-bottom: 20px;
+
+    border: 1px solid #1d4157;
+}
+
+.connection-left {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 15px;
+}
+
+.bluetooth-icon {
+
+    width: 48px;
+
+    height: 48px;
+
+    border-radius: 14px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    font-size: 23px;
+}
+
+.bluetooth-icon.disconnected {
+
+    background: #3b2025;
+
+}
+
+.bluetooth-icon.connected {
+
+    background: #073f49;
+
+}
+
+.small-title {
+
+    color: #8ea4b5;
+
+    font-size: 13px;
+
+    margin-bottom: 5px;
+}
+
+.status {
+
+    font-size: 17px;
+
+    font-weight: bold;
+}
+
+
+/* =====================================================
+   SENSOR GRID
+===================================================== */
+
+.sensor-grid {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(2, 1fr);
+
+    gap: 14px;
+
+    margin-bottom: 15px;
+}
+
+
+/* =====================================================
+   SENSOR CARD
+===================================================== */
+
+.sensor-card {
+
+    background: #102b3c;
+
+    border-radius: 18px;
+
+    padding: 20px;
+
+    border: 1px solid #1d4157;
+
+    min-height: 175px;
+}
+
+.sensor-card:first-child {
+
+    grid-column:
+        1 / -1;
+
+    min-height: 150px;
+}
+
+.sensor-icon {
+
+    font-size: 27px;
+
+    margin-bottom: 12px;
+}
+
+.tds {
+    color: #22d3ee;
+}
+
+.turbidity {
+    color: #38bdf8;
+}
+
+.temperature {
+    color: #fb923c;
+}
+
+.sensor-name {
+
+    color: #8ea4b5;
+
+    font-size: 14px;
+
+    margin-bottom: 6px;
+}
+
+.sensor-value {
+
+    font-size: 31px;
+
+    font-weight: bold;
+
+    word-break: break-word;
+}
+
+.sensor-unit {
+
+    color: #718797;
+
+    font-size: 12px;
+
+    margin-top: 4px;
+}
+
+
+/* =====================================================
+   QUALITY CARD
+===================================================== */
+
+.quality-card {
+
+    background: #102b3c;
+
+    border-radius: 20px;
+
+    padding: 27px 20px;
+
+    text-align: center;
+
+    border: 2px solid #536575;
+
+    margin-bottom: 20px;
+
+    transition:
+        border-color 0.3s,
+        box-shadow 0.3s;
+}
+
+.quality-icon {
+
+    width: 55px;
+
+    height: 55px;
+
+    border-radius: 50%;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    margin: auto;
+
+    margin-bottom: 12px;
+
+    font-size: 28px;
+
+    background: #263746;
+}
+
+.quality-title {
+
+    color: #8ea4b5;
+
+    font-size: 13px;
+
+    letter-spacing: 2px;
+
+    margin-bottom: 7px;
+}
+
+.quality-value {
+
+    font-size: 31px;
+
+    font-weight: bold;
+}
+
+
+/* =====================================================
+   QUALITY COLORS
+===================================================== */
+
+.quality-pure {
+
+    border-color: #3b82f6;
+
+    box-shadow:
+        0 0 20px
+        rgba(59, 130, 246, 0.2);
+}
+
+.quality-excellent {
+
+    border-color: white;
+
+    box-shadow:
+        0 0 20px
+        rgba(255, 255, 255, 0.15);
+}
+
+.quality-good {
+
+    border-color: #facc15;
+
+    box-shadow:
+        0 0 20px
+        rgba(250, 204, 21, 0.2);
+}
+
+.quality-fair {
+
+    border-color: #22c55e;
+
+    box-shadow:
+        0 0 20px
+        rgba(34, 197, 94, 0.2);
+}
+
+.quality-high {
+
+    border-color: #06b6d4;
+
+    box-shadow:
+        0 0 20px
+        rgba(6, 182, 212, 0.2);
+}
+
+
+/* =====================================================
+   CONNECT BUTTON
+===================================================== */
+
+.connect-button {
+
+    width: 100%;
+
+    height: 58px;
+
+    border: none;
+
+    border-radius: 16px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #0891b2,
+            #0369a1
+        );
+
+    color: white;
+
+    font-size: 16px;
+
+    font-weight: bold;
+
+    cursor: pointer;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 10px;
+
+    box-shadow:
+        0 8px 20px
+        rgba(0, 0, 0, 0.25);
+
+    transition:
+        transform 0.15s,
+        opacity 0.15s;
+}
+
+.connect-button:active {
+
+    transform: scale(0.98);
+}
+
+.connect-button:disabled {
+
+    opacity: 0.5;
+
+    cursor: not-allowed;
+}
+
+
+/* =====================================================
+   INFORMATION
+===================================================== */
+
+.info-box {
+
+    background: #0c202d;
+
+    border-radius: 14px;
+
+    padding: 15px;
+
+    margin-top: 18px;
+
+    color: #8ea4b5;
+
+    font-size: 13px;
+
+    line-height: 1.6;
+}
+
+.info-box strong {
+
+    color: white;
+}
+
+.info-box p {
+
+    margin-bottom: 5px;
+}
+
+.info-box p:last-child {
+
+    margin-bottom: 0;
+}
+
+
+/* =====================================================
+   DEBUG
+===================================================== */
+
+.debug-box {
+
+    margin-top: 15px;
+
+    background: #071017;
+
+    border-radius: 14px;
+
+    padding: 14px;
+
+    border: 1px solid #162a38;
+}
+
+.debug-title {
+
+    color: #718797;
+
+    font-size: 12px;
+
+    margin-bottom: 7px;
+}
+
+#rawData {
+
+    color: #22d3ee;
+
+    font-family:
+        monospace;
+
+    font-size: 12px;
+
+    word-break: break-all;
+}
+
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (max-width: 400px) {
+
+    .app {
+
+        padding: 14px;
+    }
+
+    h1 {
+
+        font-size: 22px;
+    }
+
+    .sensor-card {
+
+        padding: 16px;
+    }
+
+    .sensor-value {
+
+        font-size: 26px;
+    }
+
+}
+
+
+/* =====================================================
+   LARGER SCREEN
+===================================================== */
+
+@media (min-width: 700px) {
+
+    body {
+
+        display: flex;
+
+        justify-content: center;
+    }
+
+    .app {
+
+        padding-top: 40px;
+    }
+}
