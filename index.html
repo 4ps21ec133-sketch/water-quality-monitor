@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <meta name="theme-color"
+          content="#071421">
+
+    <title>Water Quality Monitor</title>
+
+    <link rel="stylesheet"
+          href="style.css">
+</head>
+
+<body>
+
+    <div class="app">
+
+        <!-- HEADER -->
+        <header>
+
+            <div class="water-icon">
+                💧
+            </div>
+
+            <div>
+                <h1>Water Quality</h1>
+                <p>ESP32 • Bluetooth Monitor</p>
+            </div>
+
+        </header>
+
+
+        <!-- BLUETOOTH STATUS -->
+        <div class="connection-card">
+
+            <div class="connection-left">
+
+                <div id="bluetoothIcon"
+                     class="bluetooth-icon disconnected">
+                    📡
+                </div>
+
+                <div>
+
+                    <div class="small-title">
+                        Bluetooth Status
+                    </div>
+
+                    <div id="status"
+                         class="status">
+                        Disconnected
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- SENSOR CARDS -->
+
+        <div class="sensor-grid">
+
+            <!-- TDS -->
+            <div class="sensor-card">
+
+                <div class="sensor-icon tds">
+                    🧪
+                </div>
+
+                <div class="sensor-name">
+                    TDS
+                </div>
+
+                <div id="tds"
+                     class="sensor-value">
+                    --
+                </div>
+
+                <div class="sensor-unit">
+                    Raw ADC
+                </div>
+
+            </div>
+
+
+            <!-- TURBIDITY -->
+            <div class="sensor-card">
+
+                <div class="sensor-icon turbidity">
+                    💧
+                </div>
+
+                <div class="sensor-name">
+                    Turbidity
+                </div>
+
+                <div id="turbidity"
+                     class="sensor-value">
+                    --
+                </div>
+
+                <div class="sensor-unit">
+                    Raw ADC
+                </div>
+
+            </div>
+
+
+            <!-- TEMPERATURE -->
+            <div class="sensor-card">
+
+                <div class="sensor-icon temperature">
+                    🌡️
+                </div>
+
+                <div class="sensor-name">
+                    Temperature
+                </div>
+
+                <div id="temperature"
+                     class="sensor-value">
+                    --
+                </div>
+
+                <div class="sensor-unit">
+                    °C
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- QUALITY -->
+
+        <div id="qualityCard"
+             class="quality-card">
+
+            <div id="qualityIcon"
+                 class="quality-icon">
+                ✓
+            </div>
+
+            <div class="quality-title">
+                WATER QUALITY
+            </div>
+
+            <div id="quality"
+                 class="quality-value">
+                --
+            </div>
+
+        </div>
+
+
+        <!-- BUTTON -->
+
+        <button id="connectButton"
+                class="connect-button">
+
+            <span id="buttonIcon">
+                🔵
+            </span>
+
+            <span id="buttonText">
+                CONNECT BLUETOOTH
+            </span>
+
+        </button>
+
+
+        <!-- INFORMATION -->
+
+        <div class="info-box">
+
+            <p>
+                <strong>ESP32:</strong>
+                Water Quality Monitor
+            </p>
+
+            <p>
+                TDS and Turbidity are displayed
+                as raw ADC values.
+            </p>
+
+            <p>
+                Quality is calculated by the ESP32
+                using the TDS value.
+            </p>
+
+        </div>
+
+
+        <!-- RAW DATA -->
+
+        <div class="debug-box">
+
+            <div class="debug-title">
+                Last BLE Data
+            </div>
+
+            <div id="rawData">
+                Waiting for data...
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <script src="app.js"></script>
+
+</body>
+
+</html>
