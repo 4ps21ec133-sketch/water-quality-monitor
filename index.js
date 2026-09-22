@@ -1,5 +1,5 @@
 // =====================================================
-// WATER QUALITY MONITOR - ESP32 BLE
+// ESP32 BLE DEVICE SETTINGS
 // =====================================================
 
 // ESP32 BLE device name
@@ -7,10 +7,11 @@ const DEVICE_NAME = "Water Quality Monitor";
 
 // BLE Service UUID
 const SERVICE_UUID =
-    "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+    "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
+
 // ESP32 -> Phone
 const TX_UUID =
-    "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+    "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
 
 
 // =====================================================
@@ -164,7 +165,7 @@ async function connectBluetooth()
                 [
                     {
                         namePrefix:
-                            "Water Quality Monitor"
+                            DEVICE_NAME
                     }
                 ],
 
@@ -417,10 +418,20 @@ function handleBLEData(event)
     );
 
 
-    // Show raw packet
-    rawDataElement.innerText =
-        data;
+    // =================================================
+    // SHOW COMPLETE RAW PACKET
+    // =================================================
 
+    if (rawDataElement)
+    {
+        rawDataElement.innerText =
+            data;
+    }
+
+
+    // =================================================
+    // PARSE DATA
+    // =================================================
 
     parseBLEData(data);
 }
@@ -432,7 +443,7 @@ function handleBLEData(event)
 //
 // ESP32 sends:
 //
-// TDS:378,TURB:1250,Q:GOOD
+// TDS:378,TURB:1250,TEMP:27.50,Q:GOOD
 //
 // =====================================================
 
@@ -452,8 +463,11 @@ function parseBLEData(data)
         const tds =
             tdsMatch[1];
 
-        tdsElement.innerText =
-            tds;
+        if (tdsElement)
+        {
+            tdsElement.innerText =
+                tds;
+        }
 
         console.log(
             "TDS:",
@@ -476,12 +490,45 @@ function parseBLEData(data)
         const turbidity =
             turbidityMatch[1];
 
-        turbidityElement.innerText =
-            turbidity;
+        if (turbidityElement)
+        {
+            turbidityElement.innerText =
+                turbidity;
+        }
 
         console.log(
             "Turbidity:",
             turbidity
+        );
+    }
+
+
+    // ---------------------------------------------------
+    // TEMPERATURE
+    // ---------------------------------------------------
+
+    const temperatureMatch =
+        data.match(
+            /TEMP:([-+]?[0-9]*\.?[0-9]+)/
+        );
+
+    if (temperatureMatch)
+    {
+        const temperature =
+            parseFloat(
+                temperatureMatch[1]
+            );
+
+        if (temperatureElement)
+        {
+            temperatureElement.innerText =
+                temperature.toFixed(2) + " °C";
+        }
+
+        console.log(
+            "Temperature:",
+            temperature,
+            "°C"
         );
     }
 
@@ -500,8 +547,11 @@ function parseBLEData(data)
         const quality =
             qualityMatch[1];
 
-        qualityElement.innerText =
-            quality;
+        if (qualityElement)
+        {
+            qualityElement.innerText =
+                quality;
+        }
 
         console.log(
             "Quality:",
@@ -510,14 +560,13 @@ function parseBLEData(data)
     }
 
 
-    // ---------------------------------------------------
-    // TEMPERATURE
-    // ---------------------------------------------------
-    //
-    // Your current ESP32 code DOES NOT send temperature.
-    //
-    // Therefore we don't change temperature here.
-    //
+    // =================================================
+    // DEBUG
+    // =================================================
+
+    console.log(
+        "All sensor data processed."
+    );
 }
 
 
@@ -561,3 +610,5 @@ window.addEventListener(
         checkBluetooth();
     }
 );
+
+
