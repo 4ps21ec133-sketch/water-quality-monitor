@@ -1,6 +1,6 @@
 // =====================================================
 // WATER QUALITY MONITOR
-// ESP32 → BLE → APP INVENTOR → WEBVIEW → WEBSITE
+// WEBSITE — NORMAL GOOGLE CHROME
 // =====================================================
 
 
@@ -46,237 +46,64 @@ const bluetoothIcon =
 
 
 // =====================================================
-// APP INVENTOR CHECK
-// =====================================================
-
-function isAppInventorWebView()
-{
-    return (
-        window.AppInventor &&
-        typeof window.AppInventor.getWebViewString === "function"
-    );
-}
-
-
-// =====================================================
-// READ DATA FROM APP INVENTOR
-// =====================================================
-
-function receiveFromAppInventor()
-{
-    // Website opened normally in Chrome
-    if (!isAppInventorWebView())
-    {
-        return;
-    }
-
-
-    // Get WebViewString
-    const data =
-        window.AppInventor.getWebViewString();
-
-
-    // No data
-    if (!data || data.trim() === "")
-    {
-        return;
-    }
-
-
-    console.log(
-        "DATA FROM APP INVENTOR:",
-        data
-    );
-
-
-    // Show complete packet
-    if (rawDataElement)
-    {
-        rawDataElement.innerText =
-            data;
-    }
-
-
-    // Parse packet
-    parseBLEData(data);
-
-
-    // Update connection status
-    setConnectedStatus();
-}
-
-
-// =====================================================
-// PARSE ESP32 DATA
-// =====================================================
-//
-// ESP32 sends:
-//
+// PARSE SENSOR DATA
+// Example:
 // TDS:378,TURB:1250,TEMP:27.50,Q:GOOD
-//
 // =====================================================
 
-function parseBLEData(data)
-{
+function parseBLEData(data) {
 
-    // =================================================
+    if (!data) return;
+
+    if (rawDataElement) {
+        rawDataElement.innerText = data;
+    }
+
     // TDS
-    // =================================================
+    const tdsMatch = data.match(/TDS:([0-9]+)/);
 
-    const tdsMatch =
-        data.match(
-            /TDS:([0-9]+)/
-        );
-
-
-    if (tdsMatch)
-    {
-
-        const tds =
-            tdsMatch[1];
-
-
-        if (tdsElement)
-        {
-            tdsElement.innerText =
-                tds;
-        }
-
-
-        console.log(
-            "TDS:",
-            tds
-        );
+    if (tdsMatch && tdsElement) {
+        tdsElement.innerText = tdsMatch[1];
     }
 
-
-    // =================================================
     // TURBIDITY
-    // =================================================
+    const turbidityMatch = data.match(/TURB:([0-9]+)/);
 
-    const turbidityMatch =
-        data.match(
-            /TURB:([0-9]+)/
-        );
-
-
-    if (turbidityMatch)
-    {
-
-        const turbidity =
-            turbidityMatch[1];
-
-
-        if (turbidityElement)
-        {
-            turbidityElement.innerText =
-                turbidity;
-        }
-
-
-        console.log(
-            "Turbidity:",
-            turbidity
-        );
+    if (turbidityMatch && turbidityElement) {
+        turbidityElement.innerText = turbidityMatch[1];
     }
 
-
-    // =================================================
     // TEMPERATURE
-    // =================================================
-
     const temperatureMatch =
-        data.match(
-            /TEMP:([-+]?[0-9]*\.?[0-9]+)/
-        );
+        data.match(/TEMP:([-+]?[0-9]*\.?[0-9]+)/);
 
-
-    if (temperatureMatch)
-    {
-
-        const temperature =
-            parseFloat(
-                temperatureMatch[1]
-            );
-
-
-        if (temperatureElement)
-        {
-            temperatureElement.innerText =
-                temperature.toFixed(2) +
-                " °C";
-        }
-
-
-        console.log(
-            "Temperature:",
-            temperature,
-            "°C"
-        );
+    if (temperatureMatch && temperatureElement) {
+        temperatureElement.innerText =
+            parseFloat(temperatureMatch[1]).toFixed(2) + " °C";
     }
 
-
-    // =================================================
     // WATER QUALITY
-    // =================================================
+    const qualityMatch = data.match(/Q:([A-Za-z]+)/);
 
-    const qualityMatch =
-        data.match(
-            /Q:([A-Za-z]+)/
-        );
+    if (qualityMatch) {
+        const quality = qualityMatch[1].toUpperCase();
 
-
-    if (qualityMatch)
-    {
-
-        const quality =
-            qualityMatch[1]
-                .toUpperCase();
-
-
-        if (qualityElement)
-        {
-            qualityElement.innerText =
-                quality;
+        if (qualityElement) {
+            qualityElement.innerText = quality;
         }
 
-
-        console.log(
-            "Quality:",
-            quality
-        );
-
-
-        updateQualityStyle(
-            quality
-        );
+        updateQualityStyle(quality);
     }
-
-
-    // =================================================
-    // DEBUG
-    // =================================================
-
-    console.log(
-        "All sensor data processed."
-    );
 }
 
 
 // =====================================================
-// UPDATE QUALITY STYLE
+// UPDATE WATER QUALITY STYLE
 // =====================================================
 
-function updateQualityStyle(quality)
-{
+function updateQualityStyle(quality) {
 
-    if (!qualityCard)
-    {
-        return;
-    }
-
-
-    // Remove previous quality classes
+    if (!qualityCard) return;
 
     qualityCard.classList.remove(
         "quality-pure",
@@ -286,279 +113,89 @@ function updateQualityStyle(quality)
         "quality-high"
     );
 
+    const classes = {
+        PURE: "quality-pure",
+        EXCELLENT: "quality-excellent",
+        GOOD: "quality-good",
+        FAIR: "quality-fair",
+        HIGH: "quality-high"
+    };
 
-    // =================================================
-    // PURE
-    // =================================================
-
-    if (quality === "PURE")
-    {
-
-        qualityCard.classList.add(
-            "quality-pure"
-        );
-
-
-        if (qualityIcon)
-        {
-            qualityIcon.innerText =
-                "✓";
-        }
-
+    if (classes[quality]) {
+        qualityCard.classList.add(classes[quality]);
     }
 
-
-    // =================================================
-    // EXCELLENT
-    // =================================================
-
-    else if (quality === "EXCELLENT")
-    {
-
-        qualityCard.classList.add(
-            "quality-excellent"
-        );
-
-
-        if (qualityIcon)
-        {
-            qualityIcon.innerText =
-                "✓";
-        }
-
+    if (qualityIcon) {
+        qualityIcon.innerText =
+            ["PURE", "EXCELLENT", "GOOD"].includes(quality)
+                ? "✓"
+                : "!";
     }
-
-
-    // =================================================
-    // GOOD
-    // =================================================
-
-    else if (quality === "GOOD")
-    {
-
-        qualityCard.classList.add(
-            "quality-good"
-        );
-
-
-        if (qualityIcon)
-        {
-            qualityIcon.innerText =
-                "✓";
-        }
-
-    }
-
-
-    // =================================================
-    // FAIR
-    // =================================================
-
-    else if (quality === "FAIR")
-    {
-
-        qualityCard.classList.add(
-            "quality-fair"
-        );
-
-
-        if (qualityIcon)
-        {
-            qualityIcon.innerText =
-                "!";
-        }
-
-    }
-
-
-    // =================================================
-    // HIGH
-    // =================================================
-
-    else if (quality === "HIGH")
-    {
-
-        qualityCard.classList.add(
-            "quality-high"
-        );
-
-
-        if (qualityIcon)
-        {
-            qualityIcon.innerText =
-                "!";
-        }
-
-    }
-
 }
 
 
 // =====================================================
-// CONNECTED STATUS
+// CONNECTION STATUS
 // =====================================================
 
-function setConnectedStatus()
-{
+function setConnectedStatus() {
 
-    if (statusElement)
-    {
+    if (statusElement) {
+        statusElement.innerText = "Bluetooth Connected";
+    }
+
+    if (bluetoothIcon) {
+        bluetoothIcon.classList.remove("disconnected");
+        bluetoothIcon.classList.add("connected");
+    }
+
+    if (buttonText) {
+        buttonText.innerText = "BLUETOOTH CONNECTED";
+    }
+
+    if (buttonIcon) {
+        buttonIcon.innerText = "🟢";
+    }
+}
+
+
+// =====================================================
+// INITIAL STATUS
+// =====================================================
+
+window.addEventListener("load", function () {
+
+    console.log("Water Quality Monitor loaded in Chrome");
+
+    if (statusElement) {
         statusElement.innerText =
-            "Bluetooth Connected";
+            "Ready — connect Bluetooth to receive data";
     }
 
-
-    if (bluetoothIcon)
-    {
-
-        bluetoothIcon.classList.remove(
-            "disconnected"
-        );
-
-        bluetoothIcon.classList.add(
-            "connected"
-        );
+    if (buttonText) {
+        buttonText.innerText = "CONNECT BLUETOOTH";
     }
 
-
-    if (buttonText)
-    {
-        buttonText.innerText =
-            "BLUETOOTH CONNECTED";
+    if (buttonIcon) {
+        buttonIcon.innerText = "🔵";
     }
 
+    // Sample data for testing the website display.
+    // Uncomment the next line to test the sensor cards.
+    // parseBLEData("TDS:378,TURB:1250,TEMP:27.50,Q:GOOD");
 
-    if (buttonIcon)
-    {
-        buttonIcon.innerText =
-            "🟢";
-    }
-
-}
+});
 
 
 // =====================================================
-// WAITING STATUS
+// TEST FUNCTION
+// Call this from the browser console to test the UI.
 // =====================================================
 
-function setWaitingStatus()
-{
+window.testSensorData = function () {
 
-    if (statusElement)
-    {
-        statusElement.innerText =
-            "Waiting for Bluetooth...";
-    }
-
-
-    if (buttonText)
-    {
-        buttonText.innerText =
-            "BLUETOOTH CONNECTED";
-    }
-
-}
-
-
-// =====================================================
-// CONNECT BUTTON
-// =====================================================
-//
-// IMPORTANT:
-//
-// Bluetooth is handled by App Inventor.
-// The website does NOT connect to ESP32.
-//
-// =====================================================
-
-if (connectButton)
-{
-
-    connectButton.addEventListener(
-        "click",
-        function()
-        {
-
-            if (isAppInventorWebView())
-            {
-
-                alert(
-                    "Bluetooth is controlled by the App Inventor application."
-                );
-
-            }
-
-            else
-            {
-
-                alert(
-                    "Please open this website inside the App Inventor WebViewer."
-                );
-
-            }
-
-        }
+    parseBLEData(
+        "TDS:378,TURB:1250,TEMP:27.50,Q:GOOD"
     );
 
-}
-
-
-// =====================================================
-// READ WEBVIEWSTRING EVERY 500 ms
-// =====================================================
-
-setInterval(
-    receiveFromAppInventor,
-    500
-);
-
-
-// =====================================================
-// FIRST CHECK
-// =====================================================
-
-window.addEventListener(
-    "load",
-    function()
-    {
-
-        console.log(
-            "Water Quality Monitor loaded"
-        );
-
-
-        if (isAppInventorWebView())
-        {
-
-            console.log(
-                "Running inside App Inventor WebViewer"
-            );
-
-
-            setWaitingStatus();
-
-        }
-
-        else
-        {
-
-            console.log(
-                "Running in normal browser"
-            );
-
-
-            if (statusElement)
-            {
-                statusElement.innerText =
-                    "Open in App Inventor";
-            }
-
-        }
-
-
-        // Try reading data immediately
-
-        receiveFromAppInventor();
-
-    }
-);
+};
