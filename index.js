@@ -1,201 +1,614 @@
 // =====================================================
-// WATER QUALITY MONITOR
-// ESP32 BLE -> GOOGLE CHROME WEBSITE
+// ESP32 BLE DEVICE SETTINGS
 // =====================================================
 
+// ESP32 BLE device name
+const DEVICE_NAME = "Water Quality Monitor";
+
+// BLE Service UUID
 const SERVICE_UUID =
-    "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+    "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
 
-const RX_UUID =
-    "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-
+// ESP32 -> Phone
 const TX_UUID =
-    "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+    "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
 
-const $ = id => document.getElementById(id);
 
-let bleDevice = null;
-let bleServer = null;
+// =====================================================
+// HTML ELEMENTS
+// =====================================================
+
+const connectButton =
+    document.getElementById("connectButton");
+
+const buttonText =
+    document.getElementById("buttonText");
+
+const statusElement =
+    document.getElementById("status");
+
+const rawDataElement =
+    document.getElementById("rawData");
+
+const tdsElement =
+    document.getElementById("tds");
+
+const turbidityElement =
+    document.getElementById("turbidity");
+
+const temperatureElement =
+    document.getElementById("temperature");
+
+const qualityElement =
+    document.getElementById("quality");
+
+
+// =====================================================
+// BLE VARIABLES
+// =====================================================
+
+let bluetoothDevice = null;
 let txCharacteristic = null;
-let receivedData = "";
 
-const connectButton = $("connectButton");
-const statusElement = $("status");
-const buttonText = $("buttonText");
-const buttonIcon = $("buttonIcon");
-const bluetoothIcon = $("bluetoothIcon");
-const rawDataElement = $("rawData");
 
-function setStatus(message, connected = false) {
-    statusElement.innerText = message;
+// =====================================================
+// STATUS
+// =====================================================
 
-    bluetoothIcon.classList.toggle(
-        "connected", connected
-    );
+function setStatus(message)
+{
+    console.log(message);
 
-    bluetoothIcon.classList.toggle(
-        "disconnected", !connected
-    );
-
-    buttonText.innerText = connected
-        ? "BLUETOOTH CONNECTED"
-        : "CONNECT BLUETOOTH";
-
-    buttonIcon.innerText = connected ? "🟢" : "🔵";
-}
-
-function parseBLEData(data) {
-    if (!data) return;
-
-    rawDataElement.innerText = data;
-
-    const tds = data.match(/TDS:\s*(-?\d+)/i);
-    const turb = data.match(/TURB:\s*(-?\d+)/i);
-    const temp = data.match(/TEMP:\s*(-?\d+(?:\.\d+)?)/i);
-    const quality = data.match(/Q:\s*([A-Za-z]+)/i);
-
-    if (tds) $("tds").innerText = tds[1];
-    if (turb) $("turbidity").innerText = turb[1];
-
-    if (temp) {
-        $("temperature").innerText =
-            parseFloat(temp[1]).toFixed(2) + " °C";
+    if (statusElement)
+    {
+        statusElement.innerText = message;
     }
 
-    if (quality) {
-        const q = quality[1].toUpperCase();
-        $("quality").innerText = q;
-        updateQualityStyle(q);
+    if (rawDataElement)
+    {
+        rawDataElement.innerText = message;
     }
 }
 
-function updateQualityStyle(quality) {
-    const card = $("qualityCard");
 
-    card.classList.remove(
-        "quality-pure",
-        "quality-excellent",
-        "quality-good",
-        "quality-fair",
-        "quality-high"
+// =====================================================
+// BLUETOOTH SUPPORT CHECK
+// =====================================================
+
+function checkBluetooth()
+{
+    console.log("Checking Web Bluetooth...");
+
+    console.log(
+        "Secure:",
+        window.isSecureContext
     );
 
-    const styles = {
-        PURE: "quality-pure",
-        EXCELLENT: "quality-excellent",
-        GOOD: "quality-good",
-        FAIR: "quality-fair",
-        HIGH: "quality-high"
-    };
-
-    if (styles[quality]) {
-        card.classList.add(styles[quality]);
-    }
-
-    $("qualityIcon").innerText =
-        ["PURE", "EXCELLENT", "GOOD"].includes(quality)
-            ? "✓" : "!";
-}
-
-// Handles incoming BLE notification data.
-// Supports messages split across multiple notifications.
-function handleNotification(event) {
-    const value = event.target.value;
-    const bytes = new Uint8Array(
-        value.buffer,
-        value.byteOffset,
-        value.byteLength
+    console.log(
+        "Bluetooth:",
+        navigator.bluetooth
     );
 
-    for (const byte of bytes) {
-        const char = String.fromCharCode(byte);
-
-        if (char === "#") {
-            const completeMessage = receivedData.trim();
-            receivedData = "";
-
-            if (completeMessage) {
-                parseBLEData(completeMessage);
-            }
-        } else if (char === "\n" || char === "\r") {
-            // Ignore line endings between chunks.
-        } else {
-            receivedData += char;
-        }
-    }
-
-    // Also accept complete messages ending with newline
-    // when the ESP32 does not use the # terminator.
-    // The ESP32's # terminator is preferred.
-}
-
-async function connectBluetooth() {
-    if (!navigator.bluetooth) {
+    if (!window.isSecureContext)
+    {
         setStatus(
-            "Web Bluetooth unavailable. Open this page in supported Chrome over HTTPS."
+            "ERROR: Website must use HTTPS"
         );
-        return;
+
+        return false;
     }
 
-    try {
-        connectButton.disabled = true;
-        setStatus("Searching for ESP32...");
-
-        bleDevice = await navigator.bluetooth.requestDevice({
-            filters: [{ name: "Water Quality Monitor" }],
-            optionalServices: [SERVICE_UUID]
-        });
-
-        bleDevice.addEventListener(
-            "gattserverdisconnected",
-            () => {
-                txCharacteristic = null;
-                bleServer = null;
-                receivedData = "";
-                setStatus("Bluetooth disconnected");
-            }
+    if (!navigator.bluetooth)
+    {
+        setStatus(
+            "ERROR: Web Bluetooth not supported"
         );
 
-        setStatus("Connecting to ESP32...");
-
-        bleServer = await bleDevice.gatt.connect();
-
-        const service =
-            await bleServer.getPrimaryService(SERVICE_UUID);
-
-        txCharacteristic =
-            await service.getCharacteristic(TX_UUID);
-
-        await txCharacteristic.startNotifications();
-
-        txCharacteristic.addEventListener(
-            "characteristicvaluechanged",
-            handleNotification
-        );
-
-        setStatus("Bluetooth Connected", true);
-
-    } catch (error) {
-        console.error("BLE connection error:", error);
-
-        setStatus("Connection failed: " + error.message);
-    } finally {
-        connectButton.disabled = false;
+        return false;
     }
+
+    return true;
 }
+
+
+// =====================================================
+// CONNECT BUTTON
+// =====================================================
 
 connectButton.addEventListener(
     "click",
     connectBluetooth
 );
 
-window.addEventListener("load", () => {
-    setStatus("Ready — connect Bluetooth");
-    console.log("Water Quality Monitor loaded");
-});
 
-window.addEventListener("beforeunload", () => {
-    if (bleDevice && bleDevice.gatt.connected) {
-        bleDevice.gatt.disconnect();
+// =====================================================
+// CONNECT BLUETOOTH
+// =====================================================
+
+async function connectBluetooth()
+{
+    console.log("");
+    console.log("==============================");
+    console.log("CONNECT BUTTON PRESSED");
+    console.log("==============================");
+
+    if (!checkBluetooth())
+    {
+        return;
     }
-});
+
+    try
+    {
+        connectButton.disabled = true;
+
+        buttonText.innerText =
+            "SEARCHING...";
+
+        setStatus(
+            "Searching for ESP32..."
+        );
+
+
+        // =================================================
+        // STEP 1
+        // FIND ESP32
+        // =================================================
+
+        console.log(
+            "STEP 1: Searching for device..."
+        );
+
+        bluetoothDevice =
+            await navigator.bluetooth.requestDevice(
+            {
+                filters:
+                [
+                    {
+                        namePrefix:
+                            DEVICE_NAME
+                    }
+                ],
+
+                optionalServices:
+                [
+                    SERVICE_UUID
+                ]
+            });
+
+
+        console.log(
+            "ESP32 FOUND:",
+            bluetoothDevice.name
+        );
+
+        setStatus(
+            "Found: " +
+            bluetoothDevice.name
+        );
+
+
+        // =================================================
+        // DISCONNECT EVENT
+        // =================================================
+
+        bluetoothDevice.addEventListener(
+            "gattserverdisconnected",
+            handleDisconnect
+        );
+
+
+        // =================================================
+        // STEP 2
+        // CONNECT GATT
+        // =================================================
+
+        buttonText.innerText =
+            "CONNECTING...";
+
+        setStatus(
+            "Connecting to ESP32..."
+        );
+
+        console.log(
+            "STEP 2: Connecting GATT..."
+        );
+
+        const server =
+            await bluetoothDevice.gatt.connect();
+
+
+        console.log(
+            "GATT CONNECTION SUCCESS"
+        );
+
+
+        // =================================================
+        // STEP 3
+        // GET SERVICE
+        // =================================================
+
+        setStatus(
+            "Finding BLE service..."
+        );
+
+        console.log(
+            "STEP 3: Finding service..."
+        );
+
+        const service =
+            await server.getPrimaryService(
+                SERVICE_UUID
+            );
+
+
+        console.log(
+            "SERVICE FOUND"
+        );
+
+
+        // =================================================
+        // STEP 4
+        // GET TX CHARACTERISTIC
+        // =================================================
+
+        setStatus(
+            "Finding sensor data..."
+        );
+
+        console.log(
+            "STEP 4: Finding TX characteristic..."
+        );
+
+        txCharacteristic =
+            await service.getCharacteristic(
+                TX_UUID
+            );
+
+
+        console.log(
+            "TX CHARACTERISTIC FOUND"
+        );
+
+
+        // =================================================
+        // STEP 5
+        // START NOTIFICATIONS
+        // =================================================
+
+        setStatus(
+            "Starting live sensor data..."
+        );
+
+        console.log(
+            "STEP 5: Starting notifications..."
+        );
+
+        await txCharacteristic.startNotifications();
+
+
+        txCharacteristic.addEventListener(
+            "characteristicvaluechanged",
+            handleBLEData
+        );
+
+
+        console.log(
+            "NOTIFICATIONS STARTED"
+        );
+
+
+        // =================================================
+        // SUCCESS
+        // =================================================
+
+        setStatus(
+            "Bluetooth Connected"
+        );
+
+        buttonText.innerText =
+            "DISCONNECT BLUETOOTH";
+
+        connectButton.disabled = false;
+
+
+        console.log("");
+        console.log("==============================");
+        console.log("BLE CONNECTION SUCCESS");
+        console.log("==============================");
+
+    }
+    catch (error)
+    {
+        console.error(
+            "BLE ERROR:",
+            error
+        );
+
+        connectButton.disabled = false;
+
+        buttonText.innerText =
+            "CONNECT BLUETOOTH";
+
+        showBluetoothError(error);
+    }
+}
+
+
+// =====================================================
+// BLUETOOTH ERROR
+// =====================================================
+
+function showBluetoothError(error)
+{
+    let message =
+        "Bluetooth connection failed";
+
+    console.log(
+        "ERROR NAME:",
+        error.name
+    );
+
+    console.log(
+        "ERROR MESSAGE:",
+        error.message
+    );
+
+
+    if (error.name === "NotFoundError")
+    {
+        message =
+            "ESP32 not selected or not found";
+    }
+
+    else if (error.name === "SecurityError")
+    {
+        message =
+            "Bluetooth permission denied";
+    }
+
+    else if (error.name === "NotSupportedError")
+    {
+        message =
+            "Web Bluetooth is not supported";
+    }
+
+    else if (error.name === "NetworkError")
+    {
+        message =
+            "ESP32 BLE connection failed";
+    }
+
+    else if (error.name === "InvalidStateError")
+    {
+        message =
+            "Bluetooth is already connected";
+    }
+
+    else if (error.message)
+    {
+        message =
+            error.name +
+            ": " +
+            error.message;
+    }
+
+
+    setStatus(message);
+}
+
+
+// =====================================================
+// BLE DATA RECEIVED
+// =====================================================
+
+function handleBLEData(event)
+{
+    const decoder =
+        new TextDecoder("utf-8");
+
+    const data =
+        decoder.decode(
+            event.target.value
+        );
+
+
+    console.log(
+        "BLE DATA RECEIVED:",
+        data
+    );
+
+
+    // =================================================
+    // SHOW COMPLETE RAW PACKET
+    // =================================================
+
+    if (rawDataElement)
+    {
+        rawDataElement.innerText =
+            data;
+    }
+
+
+    // =================================================
+    // PARSE DATA
+    // =================================================
+
+    parseBLEData(data);
+}
+
+
+// =====================================================
+// PARSE ESP32 PACKET
+// =====================================================
+//
+// ESP32 sends:
+//
+// TDS:378,TURB:1250,TEMP:27.50,Q:GOOD
+//
+// =====================================================
+
+function parseBLEData(data)
+{
+    // ---------------------------------------------------
+    // TDS
+    // ---------------------------------------------------
+
+    const tdsMatch =
+        data.match(
+            /TDS:([0-9]+)/
+        );
+
+    if (tdsMatch)
+    {
+        const tds =
+            tdsMatch[1];
+
+        if (tdsElement)
+        {
+            tdsElement.innerText =
+                tds;
+        }
+
+        console.log(
+            "TDS:",
+            tds
+        );
+    }
+
+
+    // ---------------------------------------------------
+    // TURBIDITY
+    // ---------------------------------------------------
+
+    const turbidityMatch =
+        data.match(
+            /TURB:([0-9]+)/
+        );
+
+    if (turbidityMatch)
+    {
+        const turbidity =
+            turbidityMatch[1];
+
+        if (turbidityElement)
+        {
+            turbidityElement.innerText =
+                turbidity;
+        }
+
+        console.log(
+            "Turbidity:",
+            turbidity
+        );
+    }
+
+
+    // ---------------------------------------------------
+    // TEMPERATURE
+    // ---------------------------------------------------
+
+    const temperatureMatch =
+        data.match(
+            /TEMP:([-+]?[0-9]*\.?[0-9]+)/
+        );
+
+    if (temperatureMatch)
+    {
+        const temperature =
+            parseFloat(
+                temperatureMatch[1]
+            );
+
+        if (temperatureElement)
+        {
+            temperatureElement.innerText =
+                temperature.toFixed(2) + " °C";
+        }
+
+        console.log(
+            "Temperature:",
+            temperature,
+            "°C"
+        );
+    }
+
+
+    // ---------------------------------------------------
+    // QUALITY
+    // ---------------------------------------------------
+
+    const qualityMatch =
+        data.match(
+            /Q:([A-Za-z]+)/
+        );
+
+    if (qualityMatch)
+    {
+        const quality =
+            qualityMatch[1];
+
+        if (qualityElement)
+        {
+            qualityElement.innerText =
+                quality;
+        }
+
+        console.log(
+            "Quality:",
+            quality
+        );
+    }
+
+
+    // =================================================
+    // DEBUG
+    // =================================================
+
+    console.log(
+        "All sensor data processed."
+    );
+}
+
+
+// =====================================================
+// DISCONNECTED
+// =====================================================
+
+function handleDisconnect()
+{
+    console.log(
+        "ESP32 disconnected"
+    );
+
+    setStatus(
+        "Bluetooth Disconnected"
+    );
+
+    buttonText.innerText =
+        "CONNECT BLUETOOTH";
+
+    connectButton.disabled =
+        false;
+
+    txCharacteristic =
+        null;
+}
+
+
+// =====================================================
+// PAGE LOADED
+// =====================================================
+
+window.addEventListener(
+    "load",
+    function()
+    {
+        console.log(
+            "Water Quality Monitor loaded"
+        );
+
+        checkBluetooth();
+    }
+);
+
+
