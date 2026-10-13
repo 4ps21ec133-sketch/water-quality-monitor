@@ -3,11 +3,10 @@
 
 // =====================================================
 // ESP32 WATER QUALITY MONITOR
-// ESP32 BLE -> GOOGLE CHROME WEBSITE
+// ESP32 -> BLE -> WEBSITE
 // =====================================================
 
-// BLE SETTINGS — MUST MATCH ESP32
-
+// IMPORTANT: Keep all UUIDs lowercase.
 const DEVICE_NAME = "Water Quality Monitor";
 
 const SERVICE_UUID =
@@ -20,346 +19,199 @@ const TX_UUID =
 // HTML ELEMENTS
 // =====================================================
 
-const $ = (id) => document.getElementById(id);
+const connectButton = document.getElementById("connectButton");
+const statusElement = document.getElementById("status");
+const rawDataElement = document.getElementById("rawData");
 
-const connectButton = $("connectButton");
-const buttonText = $("buttonText");
-const buttonIcon = $("buttonIcon");
-const bluetoothIcon = $("bluetoothIcon");
-const statusElement = $("status");
-const rawDataElement = $("rawData");
-
-const tdsElement = $("tds");
-const turbidityElement = $("turbidity");
-const temperatureElement = $("temperature");
-const qualityElement = $("quality");
+const tdsElement = document.getElementById("tds");
+const turbidityElement = document.getElementById("turbidity");
+const temperatureElement = document.getElementById("temperature");
+const qualityElement = document.getElementById("quality");
 
 // =====================================================
 // BLE VARIABLES
 // =====================================================
 
-let bluetoothDevice = null;
+let bleDevice = null;
 let txCharacteristic = null;
-let isConnecting = false;
-
-// Used only if a message is split across notifications.
-let receivedData = "";
+let keepConnection = false;
 
 // =====================================================
 // STATUS DISPLAY
 // =====================================================
 
-function setStatus(message, connected = false) {
-    console.log("STATUS:", message);
-
+function setStatus(message) {
     if (statusElement) {
-        statusElement.innerText = message;
+        statusElement.textContent = message;
     }
-
-    if (buttonText) {
-        buttonText.innerText = connected
-            ? "BLUETOOTH CONNECTED"
-            : "CONNECT BLUETOOTH";
-    }
-
-    if (buttonIcon) {
-        buttonIcon.innerText = connected ? "🟢" : "🔵";
-    }
-
-    if (bluetoothIcon) {
-        bluetoothIcon.classList.toggle("connected", connected);
-        bluetoothIcon.classList.toggle("disconnected", !connected);
-    }
+    console.log(message);
 }
 
 // =====================================================
-// BLUETOOTH SUPPORT CHECK
+// CONNECT BUTTON
 // =====================================================
 
-function checkBluetooth() {
-    if (!window.isSecureContext) {
-        setStatus("ERROR: Open website using HTTPS");
-        return false;
-    }
+if (connectButton) {
+    connectButton.addEventListener("click", connectBLE);
+} else {
+    console.error("HTML element connectButton was not found.");
+}
 
+// =====================================================
+// CONNECT TO ESP32
+// =====================================================
+
+async function connectBLE() {
     if (!navigator.bluetooth) {
-        setStatus("ERROR: Web Bluetooth unavailable");
-        return false;
-    }
-
-    return true;
-}
-
-// =====================================================
-// CONNECT BLUETOOTH
-// =====================================================
-
-async function connectBluetooth() {
-    if (isConnecting) return;
-
-    if (bluetoothDevice?.gatt?.connected) {
-        bluetoothDevice.gatt.disconnect();
+        setStatus(
+            "Web Bluetooth is unavailable. Open this website in supported Chrome over HTTPS."
+        );
         return;
     }
 
-    if (!checkBluetooth()) return;
-
-    isConnecting = true;
-
-    if (connectButton) connectButton.disabled = true;
-
     try {
-        setStatus("Searching for ESP32...");
+        keepConnection = true;
+        setStatus("Select Water Quality Monitor...");
 
-        bluetoothDevice = await navigator.bluetooth.requestDevice({
-            filters: [{ name: DEVICE_NAME }],
-            optionalServices: [SERVICE_UUID]
+        console.log("Service UUID:", SERVICE_UUID);
+        console.log("TX UUID:", TX_UUID);
+
+        // Request the ESP32.
+        bleDevice = await navigator.bluetooth.requestDevice({
+            filters: [
+                { name: DEVICE_NAME }
+            ],
+            optionalServices: [
+                SERVICE_UUID
+            ]
         });
 
-        bluetoothDevice.removeEventListener(
+        bleDevice.addEventListener(
             "gattserverdisconnected",
             handleDisconnect
         );
 
-        bluetoothDevice.addEventListener(
-            "gattserverdisconnected",
-            handleDisconnect
+        setStatus("Connecting to " + bleDevice.name + "...");
+
+        // Connect to the GATT server.
+        const server = await bleDevice.gatt.connect();
+
+        // Get the custom BLE service.
+        const service = await server.getPrimaryService(
+            SERVICE_UUID
         );
 
-        setStatus("Connecting to ESP32...");
-
-        const server = await bluetoothDevice.gatt.connect();
-
-        console.log("GATT connected");
-
-        const service =
-            await server.getPrimaryService(SERVICE_UUID);
-
-        console.log("BLE service found");
-
-        txCharacteristic =
-            await service.getCharacteristic(TX_UUID);
-
-        console.log("TX characteristic found");
-
-        await txCharacteristic.startNotifications();
-
-        txCharacteristic.removeEventListener(
-            "characteristicvaluechanged",
-            handleBLEData
+        // Get the ESP32 TX notification characteristic.
+        txCharacteristic = await service.getCharacteristic(
+            TX_UUID
         );
 
+        // Listen for incoming notifications.
         txCharacteristic.addEventListener(
             "characteristicvaluechanged",
             handleBLEData
         );
 
-        receivedData = "";
+        await txCharacteristic.startNotifications();
 
-        setStatus("Bluetooth Connected", true);
-
-        console.log("BLE notifications started");
+        setStatus("Connected to " + bleDevice.name);
+        console.log("BLE notifications started.");
 
     } catch (error) {
-        console.error("BLE CONNECTION ERROR:", error);
-
+        console.error("BLE connection error:", error);
         setStatus("Connection failed: " + error.message);
-
-    } finally {
-        isConnecting = false;
-
-        if (connectButton) {
-            connectButton.disabled = false;
-        }
     }
 }
 
 // =====================================================
-// RECEIVE BLE NOTIFICATIONS
+// RECEIVE BLE DATA
 // =====================================================
 
 function handleBLEData(event) {
     const value = event.target.value;
 
-    const bytes = new Uint8Array(
-        value.buffer,
-        value.byteOffset,
-        value.byteLength
-    );
+    const decoder = new TextDecoder("utf-8");
 
-    const chunk = new TextDecoder("utf-8").decode(bytes);
+    const receivedText = decoder.decode(value).trim();
 
-    console.log("BLE NOTIFICATION:", JSON.stringify(chunk));
+    if (!receivedText) {
+        return;
+    }
 
-    // Current ESP32 code sends the entire packet in one
-    // notification and has no message terminator.
-    //
-    // Parse immediately when all expected fields are present.
-    // Otherwise, retain the data until the next notification.
-
-    receivedData += chunk;
+    console.log("BLE received:", receivedText);
 
     if (rawDataElement) {
-        rawDataElement.innerText = receivedData;
+        rawDataElement.textContent = receivedText;
     }
 
-    const hasAllFields =
-        /TDS:\s*-?\d+/i.test(receivedData) &&
-        /TURB:\s*-?\d+/i.test(receivedData) &&
-        /TEMP:\s*-?\d+(?:\.\d+)?/i.test(receivedData) &&
-        /Q:\s*[A-Za-z]+/i.test(receivedData);
-
-    if (hasAllFields) {
-        parseBLEData(receivedData);
-
-        // Current ESP32 sends a fresh complete packet every
-        // 2 seconds, so clear the buffer after parsing.
-        receivedData = "";
-    }
-
-    // Prevent unlimited growth if incoming data is malformed.
-    if (receivedData.length > 1000) {
-        console.warn("BLE receive buffer reset");
-        receivedData = "";
-    }
+    parseWaterData(receivedText);
 }
 
 // =====================================================
-// PARSE SENSOR DATA
-// Expected format:
-// TDS:378,TURB:1250,TEMP:27.50,Q:GOOD
+// PARSE ESP32 DATA
+//
+// Expected example:
+// TDS:120,TURB:250,TEMP:28.5,Q:GOOD
 // =====================================================
 
-function parseBLEData(data) {
-    console.log("COMPLETE SENSOR DATA:", data);
-
-    const tdsMatch = data.match(/TDS:\s*(-?\d+)/i);
-    const turbMatch = data.match(/TURB:\s*(-?\d+)/i);
-
-    const tempMatch = data.match(
-        /TEMP:\s*(-?\d+(?:\.\d+)?)/i
-    );
-
-    const qualityMatch = data.match(
-        /Q:\s*([A-Za-z]+)/i
-    );
+function parseWaterData(data) {
+    const tdsMatch = data.match(/(?:^|,)TDS:\s*(-?\d+(?:\.\d+)?)/i);
+    const turbidityMatch = data.match(/(?:^|,)TURB:\s*(-?\d+(?:\.\d+)?)/i);
+    const temperatureMatch = data.match(/(?:^|,)TEMP:\s*(-?\d+(?:\.\d+)?)/i);
+    const qualityMatch = data.match(/(?:^|,)Q:\s*([A-Za-z]+)/i);
 
     if (tdsMatch && tdsElement) {
-        tdsElement.innerText = tdsMatch[1];
+        tdsElement.textContent = tdsMatch[1];
     }
 
-    if (turbMatch && turbidityElement) {
-        turbidityElement.innerText = turbMatch[1];
+    if (turbidityMatch && turbidityElement) {
+        turbidityElement.textContent = turbidityMatch[1];
     }
 
-    if (tempMatch && temperatureElement) {
-        const temperature = parseFloat(tempMatch[1]);
-
-        temperatureElement.innerText =
-            Number.isFinite(temperature)
-                ? temperature.toFixed(2) + " °C"
-                : "--";
+    if (temperatureMatch && temperatureElement) {
+        temperatureElement.textContent =
+            Number(temperatureMatch[1]).toFixed(1);
     }
 
     if (qualityMatch && qualityElement) {
         const quality = qualityMatch[1].toUpperCase();
-
-        qualityElement.innerText = quality;
-        updateQualityStyle(quality);
-    }
-
-    console.log("Sensor values updated");
-}
-
-// =====================================================
-// WATER QUALITY STYLE
-// =====================================================
-
-function updateQualityStyle(quality) {
-    const qualityCard = $("qualityCard");
-
-    if (qualityCard) {
-        qualityCard.classList.remove(
-            "quality-pure",
-            "quality-excellent",
-            "quality-good",
-            "quality-fair",
-            "quality-high"
-        );
-
-        const styles = {
-            PURE: "quality-pure",
-            EXCELLENT: "quality-excellent",
-            GOOD: "quality-good",
-            FAIR: "quality-fair",
-            HIGH: "quality-high"
-        };
-
-        if (styles[quality]) {
-            qualityCard.classList.add(styles[quality]);
-        }
-    }
-
-    const qualityIcon = $("qualityIcon");
-
-    if (qualityIcon) {
-        qualityIcon.innerText =
-            ["PURE", "EXCELLENT", "GOOD"].includes(quality)
-                ? "✓"
-                : "!";
+        qualityElement.textContent = quality;
+        qualityElement.className = "quality " + quality.toLowerCase();
     }
 }
 
 // =====================================================
-// DISCONNECT HANDLER
+// HANDLE DISCONNECTION
 // =====================================================
 
 function handleDisconnect() {
-    console.log("ESP32 disconnected");
+    txCharacteristic = null;
+
+    if (keepConnection) {
+        setStatus("ESP32 disconnected. Click Connect to reconnect.");
+    } else {
+        setStatus("Disconnected.");
+    }
+}
+
+// =====================================================
+// DISCONNECT WHEN NEEDED
+// =====================================================
+
+async function disconnectBLE() {
+    keepConnection = false;
+
+    if (txCharacteristic) {
+        txCharacteristic.removeEventListener(
+            "characteristicvaluechanged",
+            handleBLEData
+        );
+    }
+
+    if (bleDevice && bleDevice.gatt && bleDevice.gatt.connected) {
+        bleDevice.gatt.disconnect();
+    }
 
     txCharacteristic = null;
-    receivedData = "";
-
-    setStatus("Bluetooth Disconnected");
-
-    if (connectButton) {
-        connectButton.disabled = false;
-    }
+    setStatus("Disconnected.");
 }
-
-// =====================================================
-// BUTTON EVENT
-// =====================================================
-
-if (connectButton) {
-    connectButton.addEventListener(
-        "click",
-        connectBluetooth
-    );
-} else {
-    console.error("Missing HTML element: connectButton");
-}
-
-// =====================================================
-// PAGE INITIALIZATION
-// =====================================================
-
-window.addEventListener("load", () => {
-    console.log("Water Quality Monitor loaded");
-
-    if (statusElement) {
-        setStatus("Ready — connect Bluetooth");
-    }
-
-    checkBluetooth();
-});
-
-// =====================================================
-// CLEANUP
-// =====================================================
-
-window.addEventListener("beforeunload", () => {
-    if (bluetoothDevice?.gatt?.connected) {
-        bluetoothDevice.gatt.disconnect();
-    }
-});
