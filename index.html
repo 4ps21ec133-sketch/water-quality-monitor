@@ -17,7 +17,7 @@
     body {
       font-family: Arial, sans-serif;
       background: #071421;
-      color: #ffffff;
+      color: #fff;
       min-height: 100vh;
       padding: 20px;
     }
@@ -70,10 +70,6 @@
       cursor: pointer;
     }
 
-    button:hover {
-      background: #55d6ff;
-    }
-
     button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -94,7 +90,7 @@
       overflow-wrap: anywhere;
     }
 
-    .card .icon {
+    .icon {
       font-size: 30px;
       margin-bottom: 12px;
     }
@@ -179,339 +175,314 @@
 </head>
 
 <body>
-  <div class="container">
+<div class="container">
 
-    <header>
-      <h1>💧 Water Quality Monitor</h1>
-      <p>ESP32 • Bluetooth Low Energy • Live Sensor Dashboard</p>
-    </header>
+  <header>
+    <h1>💧 Water Quality Monitor</h1>
+    <p>ESP32 • Bluetooth Low Energy • Live Sensor Dashboard</p>
+  </header>
 
-    <section class="connection">
-      <div id="status">🔴 Disconnected</div>
-      <button id="connectButton">CONNECT ESP32</button>
-    </section>
+  <section class="connection">
+    <div id="status">🔴 Disconnected</div>
+    <button id="connectButton">CONNECT ESP32</button>
+  </section>
 
-    <section class="grid">
+  <section class="grid">
 
-      <div class="card">
-        <div class="icon">🧪</div>
-        <h2>TDS Sensor</h2>
-        <div class="value">
-          <span id="tds">--</span>
-        </div>
-        <div class="unit">Raw ADC value</div>
-      </div>
-
-      <div class="card">
-        <div class="icon">💧</div>
-        <h2>Turbidity Sensor</h2>
-        <div class="value">
-          <span id="turbidity">--</span>
-        </div>
-        <div class="unit">Raw ADC value</div>
-      </div>
-
-      <div class="card">
-        <div class="icon">🌡️</div>
-        <h2>Temperature</h2>
-        <div class="value">
-          <span id="temperature">--</span>
-        </div>
-        <div class="unit">Degrees Celsius (°C)</div>
-      </div>
-
-      <div class="card">
-        <div class="icon">✅</div>
-        <h2>Water Quality</h2>
-        <div class="value" id="quality">--</div>
-        <div class="unit">Based on TDS ADC thresholds</div>
-      </div>
-
-    </section>
-
-    <section class="raw">
-      <h3>📡 Received BLE Data</h3>
-      <div id="rawData">Waiting for sensor data...</div>
-    </section>
-
-    <div class="footer">
-      ESP32 Water Quality Monitoring System
+    <div class="card">
+      <div class="icon">🧪</div>
+      <h2>TDS Sensor</h2>
+      <div class="value" id="tds">--</div>
+      <div class="unit">Raw ADC value</div>
     </div>
 
+    <div class="card">
+      <div class="icon">💧</div>
+      <h2>Turbidity Sensor</h2>
+      <div class="value" id="turbidity">--</div>
+      <div class="unit">Raw ADC value</div>
+    </div>
+
+    <div class="card">
+      <div class="icon">🌡️</div>
+      <h2>Temperature</h2>
+      <div class="value" id="temperature">--</div>
+      <div class="unit">Degrees Celsius (°C)</div>
+    </div>
+
+    <div class="card">
+      <div class="icon">✅</div>
+      <h2>Water Quality</h2>
+      <div class="value" id="quality">--</div>
+      <div class="unit">Based on ESP32 TDS thresholds</div>
+    </div>
+
+  </section>
+
+  <section class="raw">
+    <h3>📡 Received BLE Data</h3>
+    <div id="rawData">Waiting for sensor data...</div>
+  </section>
+
+  <div class="footer">
+    ESP32 Water Quality Monitoring System
   </div>
 
-  <script>
-    // ============================================
-    // ESP32 BLE UUIDs
-    // ============================================
+</div>
 
-    const SERVICE_UUID =
-      "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+<script>
+"use strict";
 
-    const TX_UUID =
-      "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+// ============================================
+// ESP32 BLE UUIDS
+// ============================================
 
-    // ============================================
-    // HTML ELEMENTS
-    // ============================================
+const SERVICE_UUID =
+  "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 
-    const connectButton =
-      document.getElementById("connectButton");
+const TX_UUID =
+  "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
 
-    const statusElement =
-      document.getElementById("status");
+// ============================================
+// HTML ELEMENTS
+// ============================================
 
-    const tdsElement =
-      document.getElementById("tds");
+const connectButton = document.getElementById("connectButton");
+const statusElement = document.getElementById("status");
+const tdsElement = document.getElementById("tds");
+const turbidityElement = document.getElementById("turbidity");
+const temperatureElement = document.getElementById("temperature");
+const qualityElement = document.getElementById("quality");
+const rawDataElement = document.getElementById("rawData");
 
-    const turbidityElement =
-      document.getElementById("turbidity");
+// ============================================
+// VARIABLES
+// ============================================
 
-    const temperatureElement =
-      document.getElementById("temperature");
+let bluetoothDevice = null;
+let txCharacteristic = null;
+let lastAppData = "";
+let appBuffer = "";
 
-    const qualityElement =
-      document.getElementById("quality");
+const decoder = new TextDecoder();
 
-    const rawDataElement =
-      document.getElementById("rawData");
+// ============================================
+// DETECT APP INVENTOR WEBVIEW
+// ============================================
 
-    let bluetoothDevice = null;
-    let txCharacteristic = null;
-    let bluetoothBuffer = "";
-    let lastAppData = "";
+function isAppInventor() {
+  return typeof window.AppInventor !== "undefined" &&
+    typeof window.AppInventor.getWebViewString === "function";
+}
 
-    // ============================================
-    // DETECT MIT APP INVENTOR WEBVIEW
-    // ============================================
+// ============================================
+// DISPLAY SENSOR DATA
+// ============================================
 
-    const runningInAppInventor =
-      typeof window.AppInventor !== "undefined" &&
-      typeof window.AppInventor.getWebViewString ===
-        "function";
+function parseSensorData(data) {
+  const cleanData = String(data)
+    .replace(/[\r\n#]/g, "")
+    .trim();
 
-    // ============================================
-    // DISPLAY SENSOR DATA
-    // ============================================
+  if (!cleanData) return;
 
-    function parseSensorData(data) {
-      const cleanData = String(data)
-        .replace(/[\r\n#]/g, "")
-        .trim();
+  // Only process messages containing sensor fields.
+  if (!/TDS\s*:/.test(cleanData)) {
+    rawDataElement.textContent = cleanData;
+    return;
+  }
 
-      if (!cleanData) return;
+  rawDataElement.textContent = cleanData;
 
-      rawDataElement.textContent = cleanData;
+  const values = {};
 
-      const values = {};
+  cleanData.split(",").forEach(function(item) {
+    const separator = item.indexOf(":");
+    if (separator < 0) return;
 
-      cleanData.split(",").forEach(function(item) {
-        const separator = item.indexOf(":");
+    const key = item.substring(0, separator).trim().toUpperCase();
+    const value = item.substring(separator + 1).trim();
 
-        if (separator === -1) return;
+    values[key] = value;
+  });
 
-        const key =
-          item.substring(0, separator).trim();
+  if (values.TDS !== undefined) {
+    tdsElement.textContent = values.TDS;
+  }
 
-        const value =
-          item.substring(separator + 1).trim();
+  if (values.TURB !== undefined) {
+    turbidityElement.textContent = values.TURB;
+  }
 
-        values[key] = value;
+  if (values.TEMP !== undefined) {
+    const temp = Number(values.TEMP);
+
+    if (!Number.isFinite(temp) || temp === -127) {
+      temperatureElement.textContent = "Sensor error";
+    } else {
+      temperatureElement.textContent = temp.toFixed(2);
+    }
+  }
+
+  if (values.Q !== undefined) {
+    qualityElement.textContent = values.Q;
+
+    const colors = {
+      PURE: "#70e1a1",
+      EXCELLENT: "#55d6ff",
+      GOOD: "#76a9ff",
+      FAIR: "#ffd166",
+      HIGH: "#ff7272"
+    };
+
+    qualityElement.style.color =
+      colors[values.Q.toUpperCase()] || "#ffffff";
+  }
+
+  statusElement.textContent =
+    isAppInventor()
+      ? "🟢 App Inventor data received"
+      : "🟢 ESP32 sensor data received";
+}
+
+// ============================================
+// MODE 1: MIT APP INVENTOR WEBVIEW
+// BLE data is supplied by App Inventor blocks.
+// ============================================
+
+if (isAppInventor()) {
+  connectButton.style.display = "none";
+
+  statusElement.textContent =
+    "Waiting for Bluetooth data from App Inventor...";
+
+  window.setInterval(function() {
+    let incoming;
+
+    try {
+      incoming = window.AppInventor.getWebViewString();
+    } catch (error) {
+      statusElement.textContent = "Cannot read App Inventor data";
+      return;
+    }
+
+    if (typeof incoming !== "string" || !incoming.trim()) {
+      return;
+    }
+
+    // App Inventor may supply a complete message.
+    // Avoid displaying the same message repeatedly.
+    const cleaned = incoming.trim();
+
+    if (cleaned === lastAppData) return;
+
+    lastAppData = cleaned;
+
+    // Supports complete messages with or without a # delimiter.
+    if (cleaned.includes("#")) {
+      appBuffer += cleaned;
+
+      const messages = appBuffer.split("#");
+      appBuffer = messages.pop() || "";
+
+      messages.forEach(function(message) {
+        if (message.trim()) parseSensorData(message);
+      });
+    } else {
+      parseSensorData(cleaned);
+    }
+  }, 250);
+}
+
+// ============================================
+// MODE 2: CHROME WEB BLUETOOTH
+// ============================================
+
+else {
+  if (!navigator.bluetooth) {
+    statusElement.textContent =
+      "Web Bluetooth unavailable. Use compatible Chrome over HTTPS.";
+    connectButton.disabled = true;
+  }
+
+  connectButton.addEventListener("click", async function() {
+    if (!navigator.bluetooth) return;
+
+    connectButton.disabled = true;
+
+    try {
+      statusElement.textContent = "🔵 Selecting ESP32...";
+
+      bluetoothDevice = await navigator.bluetooth.requestDevice({
+        filters: [{ name: "Water Quality Monitor" }],
+        optionalServices: [SERVICE_UUID]
       });
 
-      // TDS
-      if (values.TDS !== undefined) {
-        tdsElement.textContent = values.TDS;
-      }
+      bluetoothDevice.addEventListener(
+        "gattserverdisconnected",
+        handleDisconnect
+      );
 
-      // Turbidity
-      if (values.TURB !== undefined) {
-        turbidityElement.textContent = values.TURB;
-      }
+      statusElement.textContent = "🔵 Connecting...";
 
-      // Temperature
-      if (values.TEMP !== undefined) {
-        const temp = Number(values.TEMP);
+      const server = await bluetoothDevice.gatt.connect();
 
-        temperatureElement.textContent =
-          Number.isFinite(temp) && temp !== -127
-            ? temp.toFixed(2)
-            : "Sensor error";
-      }
+      const service = await server.getPrimaryService(SERVICE_UUID);
 
-      // Water quality
-      if (values.Q !== undefined) {
-        qualityElement.textContent = values.Q;
+      txCharacteristic = await service.getCharacteristic(TX_UUID);
 
-        const colors = {
-          PURE: "#70e1a1",
-          EXCELLENT: "#55d6ff",
-          GOOD: "#76a9ff",
-          FAIR: "#ffd166",
-          HIGH: "#ff7272"
-        };
+      txCharacteristic.addEventListener(
+        "characteristicvaluechanged",
+        handleNotifications
+      );
 
-        qualityElement.style.color =
-          colors[values.Q] || "#ffffff";
-      }
-    }
-
-    // ============================================
-    // MODE 1: MIT APP INVENTOR
-    // Native BluetoothLE extension supplies data.
-    // ============================================
-
-    if (runningInAppInventor) {
-
-      // Do not use Web Bluetooth inside the app.
-      connectButton.style.display = "none";
+      await txCharacteristic.startNotifications();
 
       statusElement.textContent =
-        "Select ESP32 using the app Bluetooth button.";
+        "🟢 Connected: " + bluetoothDevice.name;
 
-      window.setInterval(function() {
-        let incoming;
+      connectButton.textContent = "CONNECTED";
 
-        try {
-          incoming =
-            window.AppInventor.getWebViewString();
-        } catch (error) {
-          return;
-        }
+    } catch (error) {
+      console.error("BLE connection error:", error);
 
-        if (typeof incoming !== "string") return;
+      statusElement.textContent =
+        "❌ BLE error: " + error.message;
 
-        const cleaned = incoming.trim();
-
-        if (!cleaned || cleaned === lastAppData) {
-          return;
-        }
-
-        lastAppData = cleaned;
-
-        parseSensorData(cleaned);
-
-        statusElement.textContent =
-          "🟢 Receiving data through App Inventor BLE";
-
-      }, 250);
-    }
-
-    // ============================================
-    // MODE 2: CHROME WEBSITE
-    // Connect directly to ESP32 with Web Bluetooth.
-    // ============================================
-
-    else {
-
-      connectButton.addEventListener(
-        "click",
-        async function() {
-
-          if (!navigator.bluetooth) {
-            statusElement.textContent =
-              "Web Bluetooth unavailable. Use supported Chrome on HTTPS.";
-            return;
-          }
-
-          connectButton.disabled = true;
-
-          try {
-            statusElement.textContent =
-              "🔵 Selecting ESP32...";
-
-            bluetoothDevice =
-              await navigator.bluetooth.requestDevice({
-                filters: [
-                  { name: "Water Quality Monitor" }
-                ],
-                optionalServices: [SERVICE_UUID]
-              });
-
-            bluetoothDevice.addEventListener(
-              "gattserverdisconnected",
-              disconnected
-            );
-
-            statusElement.textContent =
-              "🔵 Connecting to ESP32...";
-
-            const server =
-              await bluetoothDevice.gatt.connect();
-
-            const service =
-              await server.getPrimaryService(
-                SERVICE_UUID
-              );
-
-            txCharacteristic =
-              await service.getCharacteristic(TX_UUID);
-
-            txCharacteristic.addEventListener(
-              "characteristicvaluechanged",
-              handleNotifications
-            );
-
-            await txCharacteristic.startNotifications();
-
-            statusElement.textContent =
-              "🟢 Connected: " + bluetoothDevice.name;
-
-            connectButton.textContent = "CONNECTED";
-
-          } catch (error) {
-            console.error("BLE error:", error);
-
-            statusElement.textContent =
-              "❌ Connection failed: " + error.message;
-
-            connectButton.disabled = false;
-          }
-        }
-      );
-    }
-
-    // ============================================
-    // RECEIVE AND REASSEMBLE CHROME BLE DATA
-    // # indicates the end of a complete message.
-    // ============================================
-
-    function handleNotifications(event) {
-      const text =
-        new TextDecoder().decode(event.target.value);
-
-      bluetoothBuffer += text;
-
-      let endIndex;
-
-      while (
-        (endIndex = bluetoothBuffer.indexOf("#")) !== -1
-      ) {
-        const completeMessage =
-          bluetoothBuffer.substring(0, endIndex);
-
-        bluetoothBuffer =
-          bluetoothBuffer.substring(endIndex + 1);
-
-        if (completeMessage.trim()) {
-          parseSensorData(completeMessage);
-        }
-      }
-    }
-
-    // ============================================
-    // DISCONNECT HANDLER
-    // ============================================
-
-    function disconnected() {
-      statusElement.textContent = "🔴 Disconnected";
-
-      connectButton.textContent = "CONNECT ESP32";
       connectButton.disabled = false;
-
-      txCharacteristic = null;
-      bluetoothBuffer = "";
+      connectButton.textContent = "CONNECT ESP32";
     }
-  </script>
+  });
+}
+
+// ============================================
+// CHROME BLE NOTIFICATIONS
+// ESP32 sends a sensor message every 2 seconds.
+// No # delimiter is required.
+// ============================================
+
+function handleNotifications(event) {
+  const value = event.target.value;
+  const message = decoder.decode(value).trim();
+
+  if (!message) return;
+
+  // Process this notification directly.
+  parseSensorData(message);
+}
+
+// ============================================
+// DISCONNECT
+// ============================================
+
+function handleDisconnect() {
+  txCharacteristic = null;
+
+  statusElement.textContent = "🔴 Disconnected";
+
+  connectButton.textContent = "CONNECT ESP32";
+  connectButton.disabled = false;
+}
+</script>
 </body>
 </html>
